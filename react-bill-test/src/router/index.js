@@ -10,7 +10,7 @@ const router = createBrowserRouter([
         element:<Layout/>,
         children:[
             {
-                path:'',
+                path:'/month', //不应该置空，之前视频讲的是设置默认路由的时候需要置空
                 index:true, //感觉不要这个也可以设置默认的二级路由
                 element:<Month/>
             },

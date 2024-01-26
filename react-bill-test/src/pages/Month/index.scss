@@ -17,15 +17,10 @@
     }
   
     .content {
-      height: 573px;
+      // height: 573px;
+      height: calc(100% - 15px);
       padding: 0 10px;
-      overflow-y: scroll;
-      -ms-overflow-style: none; /* Internet Explorer 10+ */
-      scrollbar-width: none; /* Firefox */
-      &::-webkit-scrollbar {
-        display: none; /* Safari and Chrome */
-      }
-  
+
       > .header {
         height: 135px;
         padding: 20px 20px 0px 18.5px;
@@ -77,6 +72,17 @@
           line-height: 14px;
           font-size: 12px;
         }
+      }
+    }
+    // 自定义的滚动样式
+    .billListWrap{
+      height: calc(100% - 135px - 60px);
+      overflow: auto;
+      overflow-y: scroll;
+      -ms-overflow-style: none; /* Internet Explorer 10+ */
+      scrollbar-width: none; /* Firefox */
+      &::-webkit-scrollbar {
+        display: none; /* Safari and Chrome */
       }
     }
   }

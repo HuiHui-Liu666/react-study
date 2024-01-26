@@ -109,15 +109,17 @@ const Month = () => {
           />
         </div>
         {/* 按日分组账单:整理好数据之后遍历 */}
-        {dayGroup.keys.map((key) => {
-          return (
-            <DailyBill
-              key={key}
-              date={key}
-              billList={dayGroup.groupData[key]}
-            />
-          );
-        })}
+        <div className="billListWrap">
+          {dayGroup.keys.map((key) => {
+            return (
+              <DailyBill
+                key={key}
+                date={key}
+                billList={dayGroup.groupData[key]}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

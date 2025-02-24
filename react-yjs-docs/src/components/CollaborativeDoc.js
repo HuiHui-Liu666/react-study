@@ -12,6 +12,9 @@ const provider = new WebsocketProvider(
   "test-yjs-docs",
   ydoc
 ); //（ws地址，文档id，ydoc实例）
+provider.on("status", (events) => {
+  console.log("status:", events.status); //logs "connected" or "disconnected"
+});
 
 // 生成随机用户名称 和 颜色，用于区分不同协作用户
 const randomName = () => {
@@ -64,53 +67,6 @@ export function CollaborativeDoc() {
   const [remoteCursors, setRemoteCursors] = useState(new Map());
   const persistenceRef = useRef(null);
 
-  //[]空的话，不依赖任何外部变量，所以只在 mounted的时候执行一次。
-  useEffect(() => {
-    // 初始化共享文本对象，用于多用户实时编辑
-    const yText = ydoc.getText("shared-text");
-    yTextRef.current = yText;
-
-    // 使用 IndexedDB 存储数据，实现持久化
-    persistenceRef.current = new IndexeddbPersistence("yjs-docs", ydoc);
-    setCurrentUser(provider.awareness.getLocalState()?.user);
-
-    // 监听用户状态变更，获取在线用户列表和光标的位置
-    provider.awareness.on("change", () => {
-      console.log("监听用户状态变更 change:");
-      const status = provider.awareness.getStates();
-      const users = new Map();
-      const cursors = new Map();
-
-      for (const [key, value] of status) {
-        // provider.awareness.clientID 当前用户id？
-        if (key !== provider.awareness.clientID) {
-          users.set(key, value.user);
-          cursors.set(key, value.cursor);
-        }
-      }
-      setRemoteUsers(users);
-      setRemoteCursors(cursors);
-    });
-
-    // 初载入时从本地数据库同步数据
-    persistenceRef.current?.whenSynced.then(() => {
-      setText(yText.toString());
-      console.log("初载入时从本地数据库同步数据", yText.toString(), text);
-    });
-
-    // 监听 yText 的变化，更新文本内容
-    const updateHandler = () => {
-      setText(yTextRef.current?.toString() || "");
-    };
-    ydoc.on("update", updateHandler);
-
-    // 解绑事件 和 清理 资源
-    return () => {
-      ydoc.off("update", updateHandler);
-      provider.disconnect();
-    };
-  }, []);
-
   useEffect(() => {
     // 监听鼠标移动事件，实时同步光标位置
     const updateCursor = (e) => {
@@ -123,11 +79,66 @@ export function CollaborativeDoc() {
           height: window.innerHeight,
         },
       });
-      // 鼠标移动的时候 就要同步 provider中的鼠标位置
-      document.addEventListener("mousemove", updateCursor);
-      return () => {
-        document.removeEventListener("mousemove", updateCursor);
-      };
+    };
+    // 鼠标移动的时候 就要同步 provider中的鼠标位置
+    document.addEventListener("mousemove", updateCursor);
+    return () => {
+      console.log("disconnect");
+      document.removeEventListener("mousemove", updateCursor);
+    };
+  }, []);
+
+  //[]空的话，不依赖任何外部变量，所以只在 mounted的时候执行一次。
+  useEffect(() => {
+    // 初始化共享文本对象，用于多用户实时编辑
+    const yText = ydoc.getText("shared-text");
+    yTextRef.current = yText;
+
+    /**
+     * yjs本地化处理：
+     * 1. ytext = ydoc.getText('');
+     * 2. 在文本域onchange的时候：ytext.insert(0,content)
+     * 3. 在mounted的时候初始化本地存储IndexeddbPersistence和ydoc关联起来
+     * 4. 在 persistance.whenSynced.then 中 赋值 ytext 给 文本域。
+     * */
+
+    // 使用 IndexedDB 存储数据，实现持久化
+    persistenceRef.current = new IndexeddbPersistence("yjs-docs", ydoc);
+    setCurrentUser(provider.awareness.getLocalState()?.user);
+
+    // 监听用户状态变更，获取在线用户列表和光标的位置
+    provider.awareness.on("change", (updates) => {
+      const status = provider.awareness.getStates();
+      const users = new Map();
+      const cursors = new Map();
+
+      for (const [key, value] of status) {
+        // provider.awareness.clientID 当前用户id？
+        if (key !== provider.awareness.clientID) {
+          users.set(key, value.user);
+          cursors.set(key, value.cursor);
+        }
+      }
+      setRemoteUsers(new Map(users));
+      setRemoteCursors(cursors);
+      console.log("监听用户状态变更 change:");
+    });
+    // 初载入时从本地数据库同步数据
+    persistenceRef.current?.whenSynced.then(() => {
+      setText(yText.toString());
+      console.log("初载入时从本地数据库同步数据");
+    });
+
+    // 监听 yText 的变化，更新文本内容
+    const updateHandler = () => {
+      setText(yTextRef.current?.toString() || "");
+    };
+    ydoc.on("update", updateHandler);
+
+    // 解绑事件 和 清理 资源
+    return () => {
+      ydoc.off("update", updateHandler);
+      // provider.disconnect();
     };
   }, []);
 
@@ -146,7 +157,6 @@ export function CollaborativeDoc() {
 
   // 处理文本框输入
   const handleChange = (event) => {
-    console.log("value:", event.target.value);
     debounceHandleChange(event);
     setText(event.target.value);
   };
@@ -163,22 +173,22 @@ export function CollaborativeDoc() {
     <div className="collaborative-doc">
       <div>
         <h3>
-          当前用户：
+          当前用户1：
           <span style={{ color: currentUser.color }}>{currentUser.name}</span>
         </h3>
-        <div>
+        {/* <div>
           其他在线用户：
-          {Array.from(remoteUsers).map(([key, user]) => {
+          {Array.from(remoteUsers).map(([key, user]) => (
             <div key={key} style={{ color: user.color }}>
               <img
                 src={user.userIcon}
                 alt={user.name}
-                style={{ width: "30", height: "30", borderRadius: "50%" }}
+                style={{ width: "20", height: "20", borderRadius: "50%" }}
               ></img>
-              {user.userName}
-            </div>;
-          })}
-        </div>
+              {user.name}
+            </div>
+          ))}
+        </div> */}
         <textarea rows={30} onChange={handleChange} value={text}></textarea>
 
         <div>
@@ -192,9 +202,11 @@ export function CollaborativeDoc() {
                     position: "absolute",
                     width: "36px",
                     height: "36px",
-                    left: pos?.cursorX + "px",
-                    top: pos?.cursorY + "px",
-                    backgroundColor: remoteCursors.get(key)?.color,
+                    left: `${pos?.cursorX}px`,
+                    top: `${pos?.cursorY}px`,
+                    textAlign: "center",
+                    lineHeight: "36px",
+                    backgroundColor: remoteUsers.get(key)?.color,
                     borderRadius: "50%",
                     pointerEvents: "none",
                     backgroundImage: `url(${remoteCursors.get(key)?.userIcon})`,
